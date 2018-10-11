@@ -1,0 +1,171 @@
+---
+title: "Homework 3"
+author: "Jaisal Amin"
+date: "10/5/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(DescTools)
+library(pwr)
+library(datasets)
+```
+
+## Problem 2
+
+### 1.)
+```{r}
+heavy_smoke = read_csv("HeavySmoke.csv")
+BMI_start = heavy_smoke$BMI_base
+BMI_end = heavy_smoke$BMI_6yrs
+
+
+```
+
+The p-value is < 0.05 so we reject the null hypothesis that the mean BMI at the start is different from the mean BMI at the end. 
+
+### 2.)
+```{r}
+never_smoke = read_csv("NeverSmoke.csv")
+heavy_diff = BMI_start - BMI_end
+never_diff = never_smoke$BMI_base - never_smoke$BMI_6yrs
+
+var.test(heavy_diff, never_diff)
+```
+
+Because the p-value is > 0.05 we fail to reject the null hypothesis that the variances are equal.
+
+### 3.)
+95% CI of the difference: (0.2888038, 4.6811133). We are 95% confident that the true difference of variance is between 0.2888038 and 4.6811133.
+
+### 4a.) 
+I would design a cohort study to follow the BMI of smokers who recently (within the last 3 months) quit and non-smokers. Since you cannot assign the treatment (smoker/non-smoker) you cannot randomize treatment but you can and should randomize across demographic factors such as age, sex, ethnicity, socioeconomic status, etc. The representative sample should be large enough to comfortably conduct multiple tests (n <30) and should be followed for at least 6 years.
+
+### 4b.)
+
+Using formula: n = (σ1^2 + σ2^2)(z1-β + z1-α/2)^2/(x̅1 - x̅2)^2
+
+```{r, table}
+power = (c(0.8, 0.8, 0.9, 0.9))
+sig = (c(0.025, 0.5, 0.025, 0.5))
+z_beta = (c(0.84, 0.84, 1.28, 1.28))
+z_alpha = (c(2.24, 1.9, 2.24, 1.9))
+n = (c(35.08, 27.76, 45.82, 37.4))
+
+tibble(
+  power = power,
+  sig_level = sig,
+  z_beta = z_beta,
+  z_alpha = z_alpha,
+  n = n
+)
+```
+
+```{r}
+smokers_mean = 3.0
+never_mean = 1.7
+smokers_sd = 2.0
+never_sd = 1.5
+sd_pooled = (((smokers_sd^2) + (never_sd^2))/2)^0.5  
+##Calculating Cohen's d in order to use power function
+cd = (smokers_mean - never_mean)/sd_pooled
+```
+
+80% vs. 90% power
+```{r}
+pwr.t.test(d = cd, sig.level = 0.05, power = 0.8, type = c("two.sample"))
+pwr.t.test(d = cd, sig.level = 0.05, power = 0.9, type = c("two.sample"))
+```
+
+2.5% vs. 5% significance level
+```{r}
+pwr.t.test(d = cd, sig.level = 0.025, power = 0.9, type = c("two.sample"))
+pwr.t.test(d = cd, sig.level = 0.05, power = 0.9, type = c("two.sample"))
+```
+
+## Problem 3
+
+```{r}
+knee = read_csv("Knee.csv")
+```
+
+### 1.)
+Descriptive statistics 
+```{r}
+knee %>% 
+  summary
+```
+
+Looking at the summary data, the mean and median decrease across groups, with medians between groups varying slightly more than means. The IQR of the "average" and "above" groups are similar however the below group has a higher IQR suggesting greater variability or outliers within that group. 
+
+### 2.)
+```{r}
+knee_data = knee %>% 
+  gather(key = "level", value = "recovery_days", Below:Above, na.rm = TRUE)
+
+anova(lm(recovery_days~factor(level), data = knee_data))
+```
+
+The hypothesis for this ANOVA test is that the mean between all 3 levels ("Below", "Average", "Above") was equal. We reject the null if F > F(k-1, n-k, 1-a) and we fail to reject if it is less than or equal to. In this case the p-value is far below the 0.01 significance level so we reject the null hypothesis that the means are equal. Because we reject the null, we can proceed to pairwise comparisons:
+
+### 3.)
+
+```{r}
+pairwise.t.test(knee_data$recovery_days, knee_data$level, p.adj = 'bonferroni')
+
+knee_aov = aov(recovery_days~factor(level), data = knee_data)
+TukeyHSD(knee_aov)
+
+```
+
+```{r, eval = FALSE}
+DunnettTest(recovery_days ~ level, data = knee_data, control = "Below")
+```
+
+
+### 4.)
+
+```{r}
+admissions = as_tibble(UCBAdmissions)
+
+admissions %>% 
+  filter(Gender == "Female") %>% 
+  group_by(Admit) %>% 
+  summarize(sum(n))
+
+admissions %>% 
+  filter(Gender == "Male") %>% 
+  group_by(Admit) %>% 
+  summarize(sum(n))
+
+female_prop = 557 / (1278 + 557)
+male_prop = 1198 / (1198 + 1493)
+```
+
+Point estimate of female student admittance is `r female_prop` and point estimate for male admittance is `r male_prop`. 
+
+```{r}
+sort_ad = spread(admissions, key = Admit, value = n) %>% 
+  mutate(sum = Admitted + Rejected) %>% 
+  mutate(prop_admit = Admitted / sum) %>% 
+  select(c(Gender, prop_admit))
+
+female = sort_ad %>% 
+  filter(Gender == "Female")
+
+male = sort_ad %>% 
+  filter(Gender == "Male")
+
+f = female$prop_admit
+m = male$prop_admit
+
+t.test(f, m, paired = FALSE)
+
+```
+
+
+
+
